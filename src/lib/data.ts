@@ -12,7 +12,7 @@ import { supabase } from "./supabase";
 
 const AUTH_REDIRECT_URL =
   import.meta.env.VITE_AUTH_REDIRECT_URL?.trim() ||
-  "https://just-ulas.github.io/tartisiyoruz/";
+  "https://just-ulas.github.io/tartisiyoruz/?auth=1";
 
 export async function loadPolls(): Promise<Poll[]> {
   if (!supabase) return getDemoPolls();
