@@ -72,6 +72,7 @@ export async function loadPolls(): Promise<Poll[]> {
     const author = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     return {
       id: row.id,
+      userId: row.created_by ?? undefined,
       question: row.question,
       description: row.description ?? "",
       category: row.category,
@@ -121,7 +122,7 @@ export async function loadComments(pollId: string): Promise<PollComment[]> {
   const { data, error } = await supabase
     .from("comments")
     .select(
-      "id,poll_id,content,created_at,profiles:profiles!comments_user_id_fkey(username,display_name)",
+      "id,poll_id,user_id,content,created_at,profiles:profiles!comments_user_id_fkey(username,display_name)",
     )
     .eq("poll_id", pollId)
     .eq("moderation_status", "visible")
@@ -134,6 +135,7 @@ export async function loadComments(pollId: string): Promise<PollComment[]> {
       : row.profiles;
     return {
       id: row.id,
+      userId: row.user_id ?? undefined,
       pollId: row.poll_id,
       username: profile?.username ?? "kullanıcı",
       displayName: profile?.display_name ?? profile?.username ?? "Kullanıcı",
@@ -410,6 +412,7 @@ export async function loadPublicProfile(username: string): Promise<PublicProfile
     .eq("user_id", data.user_id)
     .maybeSingle();
   return {
+    userId: data.user_id,
     username: data.username,
     displayName: data.display_name,
     bio: data.bio ?? "",

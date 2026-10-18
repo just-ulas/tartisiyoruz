@@ -2809,3 +2809,7 @@ a {
 .admin-poll-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-badge-admin { color: var(--brand-dark); background: var(--brand-light); }
 .admin-name-icon { display: inline-block; vertical-align: -2px; color: var(--brand); }
+.admin-inline-actions { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; align-items: center; }
+.admin-inline-actions button { border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-soft); color: var(--muted); padding: 4px 6px; font-size: 10px; cursor: pointer; }
+.admin-inline-actions button:hover { color: var(--ink); border-color: var(--brand); }
+@media (max-width: 760px) { .admin-inline-actions { width: 100%; margin-left: 0; } }

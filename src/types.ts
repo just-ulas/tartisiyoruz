@@ -18,6 +18,7 @@ export type PollOption = {
 
 export type PollComment = {
   id: string;
+  userId?: string;
   pollId: string;
   username: string;
   displayName: string;
@@ -27,6 +28,7 @@ export type PollComment = {
 
 export type Poll = {
   id: string;
+  userId?: string;
   question: string;
   description: string;
   category: Category;
@@ -40,6 +42,7 @@ export type Poll = {
 };
 
 export type PublicProfile = {
+  userId?: string;
   username: string;
   displayName: string;
   bio: string;

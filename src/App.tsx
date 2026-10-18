@@ -271,6 +271,24 @@ export default function App() {
     }
   };
 
+  const onBanUser = async (userId: string, durationMinutes: number | null) => {
+    try {
+      await adminBanUser(userId, durationMinutes, "Topluluk kurallarına aykırı davranış");
+      setToast({ text: durationMinutes ? "Kullanıcı geçici olarak kısıtlandı." : "Kullanıcı kalıcı olarak kısıtlandı.", kind: "success" });
+    } catch (cause) {
+      setToast({ text: cause instanceof Error ? cause.message : "Kullanıcı kısıtlanamadı.", kind: "error" });
+    }
+  };
+
+  const onUnbanUser = async (userId: string) => {
+    try {
+      await adminUnbanUser(userId);
+      setToast({ text: "Kullanıcının banı kaldırıldı.", kind: "success" });
+    } catch (cause) {
+      setToast({ text: cause instanceof Error ? cause.message : "Ban kaldırılamadı.", kind: "error" });
+    }
+  };
+
   const onSaveProfile = async (
     newUsername: string,
     newDisplayName: string,
@@ -435,6 +453,9 @@ export default function App() {
                     saving={saving}
                     onToast={setToast}
                     isSignedIn={Boolean(cloudUser)}
+                    isAdmin={isAdmin}
+                    onBanUser={onBanUser}
+                    onUnbanUser={onUnbanUser}
                     onSignIn={() => setShowProfile(true)}
                   />
                 }
@@ -453,6 +474,9 @@ export default function App() {
                     leaders={leaders}
                     onVote={onVote}
                     saving={saving}
+                    isAdmin={isAdmin}
+                    onBanUser={onBanUser}
+                    onUnbanUser={onUnbanUser}
                   />
                 }
               />
@@ -1175,6 +1199,9 @@ function PollPage({
   saving,
   onToast,
   isSignedIn,
+  isAdmin,
+  onBanUser,
+  onUnbanUser,
   onSignIn,
 }: {
   polls: Poll[];
@@ -1182,6 +1209,9 @@ function PollPage({
   saving: boolean;
   onToast: (toast: ToastState) => void;
   isSignedIn: boolean;
+  isAdmin: boolean;
+  onBanUser: (userId: string, durationMinutes: number | null) => Promise<void>;
+  onUnbanUser: (userId: string) => Promise<void>;
   onSignIn: () => void;
 }) {
   const { pollId = "" } = useParams();
@@ -1258,6 +1288,9 @@ function PollPage({
           <strong>{poll.author}</strong>
           <small>@{poll.username} tarafından soruldu</small>
         </span>
+        {isAdmin && poll.userId && (
+          <AdminUserActions userId={poll.userId} onBanUser={onBanUser} onUnbanUser={onUnbanUser} />
+        )}
       </div>
       <PollCard poll={poll} onVote={onVote} saving={saving} />
       <section className="discussion-section">
@@ -1315,8 +1348,8 @@ function PollPage({
               <span className="spinner" /> Yorumlar yükleniyor…
             </div>
           ) : comments.length ? (
-            comments.map((item) => (
-              <CommentItem key={item.id} comment={item} onToast={onToast} />
+              comments.map((item) => (
+              <CommentItem key={item.id} comment={item} onToast={onToast} isAdmin={isAdmin} onBanUser={onBanUser} onUnbanUser={onUnbanUser} />
             ))
           ) : (
             <div className="empty-comments">
@@ -1331,12 +1364,37 @@ function PollPage({
   );
 }
 
+function AdminUserActions({
+  userId,
+  onBanUser,
+  onUnbanUser,
+}: {
+  userId: string;
+  onBanUser: (userId: string, durationMinutes: number | null) => Promise<void>;
+  onUnbanUser: (userId: string) => Promise<void>;
+}) {
+  return (
+    <span className="admin-inline-actions" title="Yönetici işlemleri">
+      <button type="button" onClick={() => void onBanUser(userId, 60)}>1 saat ban</button>
+      <button type="button" onClick={() => void onBanUser(userId, 1440)}>24 saat ban</button>
+      <button type="button" onClick={() => void onBanUser(userId, null)}>Kalıcı ban</button>
+      <button type="button" onClick={() => void onUnbanUser(userId)}>Banı kaldır</button>
+    </span>
+  );
+}
+
 function CommentItem({
   comment,
   onToast,
+  isAdmin,
+  onBanUser,
+  onUnbanUser,
 }: {
   comment: PollComment;
   onToast: (toast: ToastState) => void;
+  isAdmin: boolean;
+  onBanUser: (userId: string, durationMinutes: number | null) => Promise<void>;
+  onUnbanUser: (userId: string) => Promise<void>;
 }) {
   const report = async () => {
     const reason = window.prompt(
@@ -1372,6 +1430,9 @@ function CommentItem({
         <button className="comment-report" type="button" onClick={report}>
           Bildir
         </button>
+        {isAdmin && comment.userId && (
+          <AdminUserActions userId={comment.userId} onBanUser={onBanUser} onUnbanUser={onUnbanUser} />
+        )}
       </div>
     </article>
   );
@@ -1443,11 +1504,17 @@ function ProfilePage({
   leaders,
   onVote,
   saving,
+  isAdmin,
+  onBanUser,
+  onUnbanUser,
 }: {
   polls: Poll[];
   leaders: Leader[];
   onVote: (pollId: string, optionId: string) => void;
   saving: boolean;
+  isAdmin: boolean;
+  onBanUser: (userId: string, durationMinutes: number | null) => Promise<void>;
+  onUnbanUser: (userId: string) => Promise<void>;
 }) {
   const { profileName = "" } = useParams();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -1508,6 +1575,9 @@ function ProfilePage({
           >
             <Share2 size={15} /> Profili paylaş
           </button>
+          {isAdmin && profile?.userId && (
+            <AdminUserActions userId={profile.userId} onBanUser={onBanUser} onUnbanUser={onUnbanUser} />
+          )}
         </div>
         <p className="profile-bio">
           {profile?.bio || "Farklı fikirleri dinlemeyi ve iyi soruların peşinden gitmeyi seviyor."}
