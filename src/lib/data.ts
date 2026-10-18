@@ -209,6 +209,9 @@ export async function signUpWithEmail(
     },
   });
   if (error) throw error;
+  if (data.user && data.user.identities?.length === 0) {
+    throw new Error("Bu e-posta zaten kayıtlı ve doğrulanmış. Giriş yapmayı dene.");
+  }
   return data.session ? "confirmed" : "verification_required";
 }
 
