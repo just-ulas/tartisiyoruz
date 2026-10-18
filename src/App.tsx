@@ -195,17 +195,8 @@ export default function App() {
         window.setTimeout(() => void refresh(), 0);
       },
     );
-    const resultChannel = client
-      .channel("public-poll-results")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "poll_results" },
-        () => window.setTimeout(() => void refresh(), 0),
-      )
-      .subscribe();
     return () => {
       subscription.subscription.unsubscribe();
-      void client.removeChannel(resultChannel);
     };
   }, []);
 
