@@ -30,6 +30,8 @@ jobs:
           node-version: 22
       - name: Enable pinned pnpm
         run: corepack enable && corepack prepare pnpm@11.25.0 --activate
+      - name: Restore Vite source entry
+        run: cp app-index.html index.html
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build
