@@ -1,5 +1,5 @@
 import { DEMO_LEADERS } from "../data/demo";
-import type { Category, Leader, Poll, PollComment } from "../types";
+import type { Category, Leader, Poll, PollComment, PublicProfile } from "../types";
 import {
   addDemoComment,
   createDemoPoll,
@@ -14,12 +14,21 @@ const AUTH_REDIRECT_URL =
   import.meta.env.VITE_AUTH_REDIRECT_URL?.trim() ||
   "https://just-ulas.github.io/tartisiyoruz/";
 
+const getVisitorId = () => {
+  const key = "tartisiyoruz.visitorId.v1";
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  localStorage.setItem(key, created);
+  return created;
+};
+
 export async function loadPolls(): Promise<Poll[]> {
   if (!supabase) return getDemoPolls();
   const { data, error } = await supabase
     .from("polls")
     .select(
-      "id,question,description,category,created_at,created_by,poll_options(id,label,position),profiles:profiles!polls_created_by_fkey(username,display_name)",
+      "id,question,description,category,created_at,created_by,poll_options(id,label,position),profiles:profiles!polls_created_by_fkey(username,display_name,bio,avatar_url,banner_url)",
     )
     .eq("status", "published")
     .order("created_at", { ascending: false })
@@ -39,7 +48,7 @@ export async function loadPolls(): Promise<Poll[]> {
         .from("votes")
         .select("poll_id,option_id")
         .eq("user_id", authData.user.id)
-    : { data: [] as { poll_id: string; option_id: string }[] };
+    : await supabase.rpc("get_guest_votes", { p_visitor_id: getVisitorId() });
   const resultCounts = new Map<string, number>();
   for (const row of (resultRows ?? []) as {
     option_id: string;
@@ -47,7 +56,9 @@ export async function loadPolls(): Promise<Poll[]> {
   }[])
     resultCounts.set(row.option_id, Number(row.vote_count));
   const voted = new Map<string, string>(
-    (ownVotesResult.data ?? []).map((vote) => [vote.poll_id, vote.option_id]),
+    (ownVotesResult.data ?? [] as { poll_id: string; option_id: string }[]).map(
+      (vote: { poll_id: string; option_id: string }) => [vote.poll_id, vote.option_id],
+    ),
   );
   const commentCounts = new Map<string, number>();
   for (const row of (commentsData ?? []) as { poll_id: string }[])
@@ -88,13 +99,17 @@ export async function voteForPoll(
 ): Promise<Poll[]> {
   if (!supabase) return voteInDemo(pollId, optionId);
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user)
-    throw new Error("Gerçek oy kullanmak için önce e-posta ile giriş yap.");
-  const { error } = await supabase.from("votes").insert({
-    poll_id: pollId,
-    option_id: optionId,
-    user_id: userData.user.id,
-  });
+  const { error } = userData.user
+    ? await supabase.from("votes").insert({
+        poll_id: pollId,
+        option_id: optionId,
+        user_id: userData.user.id,
+      })
+    : await supabase.rpc("cast_guest_vote", {
+        p_poll_id: pollId,
+        p_option_id: optionId,
+        p_visitor_id: getVisitorId(),
+      });
   if (error?.code === "23505")
     throw new Error("Bu ankette zaten oy kullandın.");
   if (error) throw error;
@@ -250,6 +265,9 @@ export async function reportComment(commentId: string, reason: string): Promise<
 export async function updateProfile(
   username: string,
   displayName: string,
+  bio = "",
+  avatarUrl = "",
+  bannerUrl = "",
 ): Promise<void> {
   if (!supabase) {
     saveDemoUser(username);
@@ -257,6 +275,9 @@ export async function updateProfile(
       "tartisiyoruz.demo.displayName.v1",
       displayName.trim() || username.trim(),
     );
+    localStorage.setItem("tartisiyoruz.demo.bio.v1", bio.trim());
+    localStorage.setItem("tartisiyoruz.demo.avatar.v1", avatarUrl.trim());
+    localStorage.setItem("tartisiyoruz.demo.banner.v1", bannerUrl.trim());
     return;
   }
   const { data: userData } = await supabase.auth.getUser();
@@ -271,10 +292,39 @@ export async function updateProfile(
       user_id: userData.user.id,
       username: cleanUsername,
       display_name: displayName.trim() || cleanUsername,
+      bio: bio.trim().slice(0, 280),
+      avatar_url: avatarUrl.trim().slice(0, 500),
+      banner_url: bannerUrl.trim().slice(0, 500),
     },
     { onConflict: "user_id" },
   );
   if (error) throw error;
+}
+
+export async function loadPublicProfile(username: string): Promise<PublicProfile | null> {
+  if (!supabase) {
+    return {
+      username,
+      displayName: localStorage.getItem("tartisiyoruz.demo.displayName.v1") || username,
+      bio: localStorage.getItem("tartisiyoruz.demo.bio.v1") || "",
+      avatarUrl: localStorage.getItem("tartisiyoruz.demo.avatar.v1") || "",
+      bannerUrl: localStorage.getItem("tartisiyoruz.demo.banner.v1") || "",
+    };
+  }
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("username,display_name,bio,avatar_url,banner_url")
+    .ilike("username", username)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    username: data.username,
+    displayName: data.display_name,
+    bio: data.bio ?? "",
+    avatarUrl: data.avatar_url ?? "",
+    bannerUrl: data.banner_url ?? "",
+  };
 }
 
 export async function loadLeaderboard(): Promise<Leader[]> {

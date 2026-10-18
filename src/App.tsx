@@ -50,6 +50,7 @@ import { CATEGORY_LABELS, CATEGORY_ORDER, DEMO_LEADERS } from "./data/demo";
 import {
   loadComments,
   loadLeaderboard,
+  loadPublicProfile,
   loadPolls,
   postComment,
   publishPoll,
@@ -63,7 +64,7 @@ import {
 } from "./lib/data";
 import { getDemoUser } from "./lib/demoStore";
 import { dataMode, supabase } from "./lib/supabase";
-import type { Category, Leader, Poll, PollComment } from "./types";
+import type { Category, Leader, Poll, PollComment, PublicProfile } from "./types";
 import "./styles.css";
 
 const initialTheme = (): "light" | "dark" =>
@@ -105,6 +106,15 @@ export default function App() {
   const [username, setUsername] = useState(getDemoUser());
   const [displayName, setDisplayName] = useState(
     localStorage.getItem("tartisiyoruz.demo.displayName.v1") || getDemoUser(),
+  );
+  const [bio, setBio] = useState(
+    localStorage.getItem("tartisiyoruz.demo.bio.v1") || "",
+  );
+  const [avatarUrl, setAvatarUrl] = useState(
+    localStorage.getItem("tartisiyoruz.demo.avatar.v1") || "",
+  );
+  const [bannerUrl, setBannerUrl] = useState(
+    localStorage.getItem("tartisiyoruz.demo.banner.v1") || "",
   );
   const [cloudUser, setCloudUser] = useState<{
     id: string;
@@ -152,7 +162,7 @@ export default function App() {
       if (!user) return;
       const { data: profile } = await client
         .from("profiles")
-        .select("username,display_name")
+        .select("username,display_name,bio,avatar_url,banner_url")
         .eq("user_id", user.id)
         .maybeSingle();
       setCloudUser({
@@ -162,6 +172,9 @@ export default function App() {
       });
       if (profile?.username) setUsername(profile.username);
       if (profile?.display_name) setDisplayName(profile.display_name);
+      setBio(profile?.bio ?? "");
+      setAvatarUrl(profile?.avatar_url ?? "");
+      setBannerUrl(profile?.banner_url ?? "");
     });
     const { data: subscription } = client.auth.onAuthStateChange(
       (_event, session) => {
@@ -215,7 +228,6 @@ export default function App() {
   };
 
   const onVote = async (pollId: string, optionId: string) => {
-    if (!(await requireIdentity())) return;
     try {
       setSaving(true);
       setPolls(await voteForPoll(pollId, optionId));
@@ -257,18 +269,38 @@ export default function App() {
     }
   };
 
-  const onSaveProfile = async (newUsername: string, newDisplayName: string) => {
+  const onSaveProfile = async (
+    newUsername: string,
+    newDisplayName: string,
+    newBio: string,
+    newAvatarUrl: string,
+    newBannerUrl: string,
+  ) => {
     try {
       setSaving(true);
-      await updateProfile(newUsername, newDisplayName);
+      await updateProfile(
+        newUsername,
+        newDisplayName,
+        newBio,
+        newAvatarUrl,
+        newBannerUrl,
+      );
       setUsername(newUsername.trim().toLowerCase());
       setDisplayName(newDisplayName.trim() || newUsername.trim());
+      setBio(newBio.trim());
+      setAvatarUrl(newAvatarUrl.trim());
+      setBannerUrl(newBannerUrl.trim());
       setShowProfile(false);
       setToast({ text: "Profilin hazır.", kind: "success" });
       if (dataMode === "cloud" && cloudUser) {
         await supabase
           ?.from("profiles")
-          .update({ display_name: newDisplayName.trim() || newUsername.trim() })
+          .update({
+            display_name: newDisplayName.trim() || newUsername.trim(),
+            bio: newBio.trim(),
+            avatar_url: newAvatarUrl.trim(),
+            banner_url: newBannerUrl.trim(),
+          })
           .eq("user_id", cloudUser.id);
       }
       void refresh();
@@ -396,6 +428,8 @@ export default function App() {
                     onVote={onVote}
                     saving={saving}
                     onToast={setToast}
+                    isSignedIn={Boolean(cloudUser)}
+                    onSignIn={() => setShowProfile(true)}
                   />
                 }
               />
@@ -444,6 +478,9 @@ export default function App() {
           <ProfileModal
             username={username}
             displayName={displayName}
+            bio={bio}
+            avatarUrl={avatarUrl}
+            bannerUrl={bannerUrl}
             saving={saving}
             isCloud={dataMode === "cloud"}
             isSignedIn={Boolean(cloudUser)}
@@ -1123,11 +1160,15 @@ function PollPage({
   onVote,
   saving,
   onToast,
+  isSignedIn,
+  onSignIn,
 }: {
   polls: Poll[];
   onVote: (pollId: string, optionId: string) => void;
   saving: boolean;
   onToast: (toast: ToastState) => void;
+  isSignedIn: boolean;
+  onSignIn: () => void;
 }) {
   const { pollId = "" } = useParams();
   const poll = polls.find((item) => item.id === pollId);
@@ -1217,6 +1258,18 @@ function PollPage({
             <Heart size={14} /> Saygı çerçevesinde
           </span>
         </div>
+        {dataMode === "cloud" && !isSignedIn ? (
+          <div className="comment-login-prompt">
+            <MessageCircle size={19} />
+            <div>
+              <strong>Yorum yapmak için giriş yap.</strong>
+              <span>Oy vermek için giriş gerekmez; yorumlar doğrulanmış hesaplara açıktır.</span>
+            </div>
+            <button type="button" className="button button-primary" onClick={onSignIn}>
+              <LogIn size={14} /> Giriş yap
+            </button>
+          </div>
+        ) : (
         <form className="comment-composer" onSubmit={submit}>
           <div className="comment-composer-avatar avatar">
             {initials(dataMode === "demo" ? getDemoUser() || "Misafir" : "Üye")}
@@ -1241,6 +1294,7 @@ function PollPage({
             </button>
           </div>
         </form>
+        )}
         <div className="comment-list">
           {loadingComments ? (
             <div className="inline-loading">
@@ -1382,19 +1436,36 @@ function ProfilePage({
   saving: boolean;
 }) {
   const { profileName = "" } = useParams();
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadPublicProfile(profileName).then((next) => {
+      if (live) setProfile(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [profileName]);
   const leader = leaders.find(
     (item) => item.username.toLowerCase() === profileName.toLowerCase(),
   );
   const authored = polls.filter(
     (poll) => poll.username.toLowerCase() === profileName.toLowerCase(),
   );
-  const name = leader?.displayName ?? authored[0]?.author ?? profileName;
+  const name = profile?.displayName ?? leader?.displayName ?? authored[0]?.author ?? profileName;
   const points = leader?.points ?? 0;
   return (
     <section className="subpage profile-page">
-      <div className="profile-banner">
+      <div
+        className="profile-banner"
+        style={profile?.bannerUrl ? { backgroundImage: `url(${profile.bannerUrl})` } : undefined}
+      >
         <div className="profile-banner-grid" />
-        <div className="profile-avatar-large">{initials(name)}</div>
+        {profile?.avatarUrl ? (
+          <img className="profile-avatar-large profile-avatar-image" src={profile.avatarUrl} alt={name} />
+        ) : (
+          <div className="profile-avatar-large">{initials(name)}</div>
+        )}
         <span className="profile-badge">
           <BadgeCheck size={14} /> Tartışıyoruz üyesi
         </span>
@@ -1425,7 +1496,7 @@ function ProfilePage({
           </button>
         </div>
         <p className="profile-bio">
-          Farklı fikirleri dinlemeyi ve iyi soruların peşinden gitmeyi seviyor.
+          {profile?.bio || "Farklı fikirleri dinlemeyi ve iyi soruların peşinden gitmeyi seviyor."}
         </p>
         <div className="profile-stats">
           <div>
@@ -1610,6 +1681,9 @@ function PollComposer({
 function ProfileModal({
   username,
   displayName,
+  bio,
+  avatarUrl,
+  bannerUrl,
   saving,
   isCloud,
   isSignedIn,
@@ -1621,17 +1695,23 @@ function ProfileModal({
 }: {
   username: string;
   displayName: string;
+  bio: string;
+  avatarUrl: string;
+  bannerUrl: string;
   saving: boolean;
   isCloud: boolean;
   isSignedIn: boolean;
   onClose: () => void;
-  onSave: (username: string, displayName: string) => void;
+  onSave: (username: string, displayName: string, bio: string, avatarUrl: string, bannerUrl: string) => void;
   onAuth: (mode: "signin" | "signup", email: string, password: string, acceptedTerms: boolean) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
 }) {
   const [name, setName] = useState(username);
   const [label, setLabel] = useState(displayName);
+  const [about, setAbout] = useState(bio);
+  const [avatar, setAvatar] = useState(avatarUrl);
+  const [banner, setBanner] = useState(bannerUrl);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -1709,7 +1789,7 @@ function ProfileModal({
           className="form-stack"
           onSubmit={(event) => {
             event.preventDefault();
-            onSave(name, label);
+            onSave(name, label, about, avatar, banner);
           }}
         >
           <label className="field-label">
@@ -1732,6 +1812,35 @@ function ProfileModal({
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               placeholder="Adın ya da takma adın"
+            />
+          </label>
+          <label className="field-label">
+            Biyografi <span>280 karakter</span>
+            <textarea
+              maxLength={280}
+              value={about}
+              onChange={(event) => setAbout(event.target.value)}
+              placeholder="Kendinden kısaca bahset..."
+            />
+          </label>
+          <label className="field-label">
+            Profil fotoğrafı URL’si
+            <input
+              type="url"
+              maxLength={500}
+              value={avatar}
+              onChange={(event) => setAvatar(event.target.value)}
+              placeholder="https://.../profil-fotografi.jpg"
+            />
+          </label>
+          <label className="field-label">
+            Banner URL’si
+            <input
+              type="url"
+              maxLength={500}
+              value={banner}
+              onChange={(event) => setBanner(event.target.value)}
+              placeholder="https://.../banner.jpg"
             />
           </label>
           {!isCloud && (

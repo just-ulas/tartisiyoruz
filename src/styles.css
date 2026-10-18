@@ -1582,6 +1582,35 @@ a {
 .comment-list {
   display: grid;
 }
+.comment-login-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--brand);
+}
+.comment-login-prompt > div {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+}
+.comment-login-prompt strong {
+  font-size: 10px;
+}
+.comment-login-prompt span {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.comment-login-prompt .button {
+  flex: none;
+  height: 31px;
+  padding: 0 10px;
+}
 .comment-item {
   display: flex;
   gap: 10px;
@@ -1837,6 +1866,10 @@ a {
   background: var(--brand);
   color: #fff;
   font: 700 18px var(--serif);
+}
+.profile-avatar-image {
+  object-fit: cover;
+  border: 4px solid var(--paper);
 }
 .profile-badge {
   position: absolute;

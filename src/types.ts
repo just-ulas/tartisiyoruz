@@ -39,6 +39,14 @@ export type Poll = {
   myVote?: string;
 };
 
+export type PublicProfile = {
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl: string;
+  bannerUrl: string;
+};
+
 export type Leader = {
   username: string;
   displayName: string;
