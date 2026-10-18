@@ -17,11 +17,11 @@ Run `pnpm typecheck` and `pnpm build` before publishing.
 
 ## Supabase setup
 
-The dedicated Tartışıyoruz Supabase Free project has already been created with the user's approval, and all three files in `supabase/migrations/` were applied in filename order. Do not apply them to an unrelated project. To reproduce the database elsewhere, run the migrations in ascending filename order: the initial schema, public aggregate results/realtime table, then server-recorded activity triggers. Google sign-in still requires a Google OAuth client ID/secret and a Supabase Auth redirect allow-list for the local URL and verified GitHub Pages URL. Set the Supabase site URL after confirming the published address.
+The dedicated Tartışıyoruz Supabase Free project has already been created with the user's approval, and all three files in `supabase/migrations/` were applied in filename order. Do not apply them to an unrelated project. To reproduce the database elsewhere, run the migrations in ascending filename order: the initial schema, public aggregate results/realtime table, then server-recorded activity triggers. Cloud authentication uses Supabase's passwordless email magic link flow; enable the Email provider and add the local and verified GitHub Pages URLs to Supabase Auth's redirect allow-list.
 
 For local development, copy the project URL and publishable (or legacy anon) key from Supabase project API settings to `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. These are public browser values; the database must keep the included RLS policies enabled. Never use or publish a `service_role` key or a private OAuth/inference secret. The Pages workflow contains the two public client settings directly because the Supabase URL and publishable key are intended for browser use; RLS—not key secrecy—protects data. Update those two workflow values if changing to another Supabase project.
 
-Google sign-in is conditional on the Google OAuth client being set up in Supabase and its redirect URLs matching the deployed origin. The repository cannot configure Google Cloud OAuth credentials on the user's behalf.
+Email sign-in sends a one-time magic link and automatically creates the user when Supabase Email Auth permits sign-ups. The user must open the link in the same browser to establish the session.
 
 ## Data and safety modes
 

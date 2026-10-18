@@ -53,7 +53,7 @@ import {
   loadPolls,
   postComment,
   publishPoll,
-  signInWithGoogle,
+  sendEmailLoginLink,
   updateProfile,
   voteForPoll,
 } from "./lib/data";
@@ -206,14 +206,7 @@ export default function App() {
       return false;
     }
     if (cloudUser) return true;
-    try {
-      await signInWithGoogle();
-    } catch (cause) {
-      setToast({
-        text: cause instanceof Error ? cause.message : "Giriş başlatılamadı.",
-        kind: "error",
-      });
-    }
+    setShowProfile(true);
     return false;
   };
 
@@ -285,17 +278,24 @@ export default function App() {
     }
   };
 
-  const onGoogleSignIn = async () => {
+  const onEmailSignIn = async (email: string) => {
     try {
-      await signInWithGoogle();
+      setSaving(true);
+      await sendEmailLoginLink(email);
+      setToast({
+        text: "Giriş bağlantısı e-posta adresine gönderildi. Gelen kutunu kontrol et.",
+        kind: "success",
+      });
     } catch (cause) {
       setToast({
         text:
           cause instanceof Error
             ? cause.message
-            : "Google girişi kullanılamıyor.",
+            : "E-posta bağlantısı gönderilemedi.",
         kind: "error",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -311,7 +311,7 @@ export default function App() {
             onProfile={() =>
               dataMode === "demo" || cloudUser
                 ? setShowProfile(true)
-                : void onGoogleSignIn()
+                : setShowProfile(true)
             }
             onCreate={() => setShowComposer(true)}
           />
@@ -321,13 +321,13 @@ export default function App() {
               onSignIn={() =>
                 dataMode === "demo"
                   ? setShowProfile(true)
-                  : void onGoogleSignIn()
+                  : setShowProfile(true)
               }
               viewerName={viewerName}
               onProfile={() =>
                 dataMode === "demo" || cloudUser
                   ? setShowProfile(true)
-                  : void onGoogleSignIn()
+                  : setShowProfile(true)
               }
             />
             {dataMode === "demo" && <DemoBanner />}
@@ -417,7 +417,7 @@ export default function App() {
           onProfile={() =>
             dataMode === "demo" || cloudUser
               ? setShowProfile(true)
-              : void onGoogleSignIn()
+              : setShowProfile(true)
           }
         />
         {showProfile && (
@@ -429,7 +429,7 @@ export default function App() {
             isSignedIn={Boolean(cloudUser)}
             onClose={() => setShowProfile(false)}
             onSave={onSaveProfile}
-            onSignIn={onGoogleSignIn}
+            onEmailSignIn={onEmailSignIn}
           />
         )}
         {showComposer && (
@@ -1544,7 +1544,7 @@ function ProfileModal({
   isSignedIn,
   onClose,
   onSave,
-  onSignIn,
+  onEmailSignIn,
 }: {
   username: string;
   displayName: string;
@@ -1553,10 +1553,11 @@ function ProfileModal({
   isSignedIn: boolean;
   onClose: () => void;
   onSave: (username: string, displayName: string) => void;
-  onSignIn: () => void;
+  onEmailSignIn: (email: string) => void;
 }) {
   const [name, setName] = useState(username);
   const [label, setLabel] = useState(displayName);
+  const [email, setEmail] = useState("");
   return (
     <Modal
       title={
@@ -1574,11 +1575,30 @@ function ProfileModal({
           <div className="signin-icon">
             <UserRound size={24} />
           </div>
-          <h3>Google hesabınla katıl.</h3>
-          <p>Gerçek oyların ve yorumların tüm cihazlarında kayıtlı kalır.</p>
-          <button className="button button-primary" onClick={onSignIn}>
-            <LogIn size={16} /> Google ile giriş yap
-          </button>
+          <h3>E-posta adresinle katıl.</h3>
+          <p>Giriş bağlantısını e-posta adresine gönderelim. Şifre gerekmez.</p>
+          <form
+            className="form-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onEmailSignIn(email);
+            }}
+          >
+            <label className="field-label">
+              E-posta adresi
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="sen@ornek.com"
+                autoComplete="email"
+              />
+            </label>
+            <button className="button button-primary" disabled={saving}>
+              {saving ? <span className="spinner spinner-white" /> : <LogIn size={16} />} E-posta bağlantısı gönder
+            </button>
+          </form>
         </div>
       ) : (
         <form

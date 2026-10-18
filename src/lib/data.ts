@@ -85,7 +85,7 @@ export async function voteForPoll(
   if (!supabase) return voteInDemo(pollId, optionId);
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user)
-    throw new Error("Gerçek oy kullanmak için önce Google ile giriş yap.");
+    throw new Error("Gerçek oy kullanmak için önce e-posta ile giriş yap.");
   const { error } = await supabase.from("votes").insert({
     poll_id: pollId,
     option_id: optionId,
@@ -134,7 +134,7 @@ export async function postComment(
   if (!supabase) return addDemoComment(pollId, text);
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user)
-    throw new Error("Yorum yazmak için Google ile giriş yap.");
+    throw new Error("Yorum yazmak için önce e-posta ile giriş yap.");
   const { error } = await supabase
     .from("comments")
     .insert({ poll_id: pollId, user_id: userData.user.id, content: text });
@@ -177,21 +177,20 @@ export async function publishPoll(
   return loadPolls();
 }
 
-export function signInWithGoogle(): Promise<void> {
+export async function sendEmailLoginLink(email: string): Promise<void> {
   if (!supabase)
-    throw new Error(
-      "Google girişi için önce Supabase bağlantısı yapılandırılmalı.",
-    );
-  return supabase.auth
-    .signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}${window.location.pathname}`,
-      },
-    })
-    .then(({ error }) => {
-      if (error) throw error;
-    });
+    throw new Error("E-posta girişi için önce Supabase bağlantısı yapılandırılmalı.");
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(normalizedEmail))
+    throw new Error("Geçerli bir e-posta adresi yaz.");
+  const { error } = await supabase.auth.signInWithOtp({
+    email: normalizedEmail,
+    options: {
+      shouldCreateUser: true,
+      emailRedirectTo: `${window.location.origin}${window.location.pathname}${window.location.hash}`,
+    },
+  });
+  if (error) throw error;
 }
 
 export async function updateProfile(
