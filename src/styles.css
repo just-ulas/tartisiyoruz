@@ -2791,3 +2791,21 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Community moderation panel */
+.admin-panel { display: grid; gap: 22px; }
+.admin-heading { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); color: var(--ink); }
+.admin-heading svg { color: var(--brand); flex: 0 0 auto; }
+.admin-heading div { display: grid; gap: 3px; }
+.admin-heading span, .muted-copy { color: var(--muted); font-size: .86rem; }
+.admin-section { display: grid; gap: 10px; }
+.admin-section h3 { margin: 0; font-size: .96rem; }
+.admin-report { display: grid; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.admin-report p { margin: 0; line-height: 1.45; }
+.admin-report small { color: var(--muted); }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.admin-actions .button { min-height: 32px; padding: 0 10px; font-size: .76rem; }
+.admin-poll-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
+.admin-poll-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-badge-admin { color: var(--brand-dark); background: var(--brand-light); }
+.admin-name-icon { display: inline-block; vertical-align: -2px; color: var(--brand); }

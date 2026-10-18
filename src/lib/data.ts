@@ -270,6 +270,62 @@ export async function reportComment(commentId: string, reason: string): Promise<
   if (error) throw error;
 }
 
+export type AdminReport = {
+  commentId: string;
+  content: string;
+  userId: string;
+  reason: string;
+  reportedAt: string;
+};
+
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc("is_current_user_admin");
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function loadAdminReports(): Promise<AdminReport[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc("admin_list_reports");
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((row) => ({
+    commentId: row.comment_id,
+    content: row.comment_content,
+    userId: row.comment_user_id,
+    reason: row.reason,
+    reportedAt: row.reported_at,
+  }));
+}
+
+export async function adminDeletePoll(pollId: string): Promise<void> {
+  if (!supabase) throw new Error("Yönetim işlemi yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("admin_delete_poll", { p_poll_id: pollId });
+  if (error) throw error;
+}
+
+export async function adminDeleteComment(commentId: string): Promise<void> {
+  if (!supabase) throw new Error("Yönetim işlemi yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("admin_delete_comment", { p_comment_id: commentId });
+  if (error) throw error;
+}
+
+export async function adminBanUser(userId: string, durationMinutes: number | null, reason: string): Promise<void> {
+  if (!supabase) throw new Error("Yönetim işlemi yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("admin_ban_user", {
+    p_user_id: userId,
+    p_duration_minutes: durationMinutes,
+    p_reason: reason,
+  });
+  if (error) throw error;
+}
+
+export async function adminUnbanUser(userId: string): Promise<void> {
+  if (!supabase) throw new Error("Yönetim işlemi yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("admin_unban_user", { p_user_id: userId });
+  if (error) throw error;
+}
+
 export async function updateProfile(
   username: string,
   displayName: string,
@@ -337,21 +393,30 @@ export async function loadPublicProfile(username: string): Promise<PublicProfile
       bio: localStorage.getItem("tartisiyoruz.demo.bio.v1") || "",
       avatarUrl: localStorage.getItem("tartisiyoruz.demo.avatar.v1") || "",
       bannerUrl: localStorage.getItem("tartisiyoruz.demo.banner.v1") || "",
+      isAdmin: false,
+      badgeLabel: "",
     };
   }
   const { data, error } = await supabase
     .from("profiles")
-    .select("username,display_name,bio,avatar_url,banner_url")
+    .select("user_id,username,display_name,bio,avatar_url,banner_url")
     .ilike("username", username)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  const { data: badge } = await supabase
+    .from("admin_roles")
+    .select("badge_label")
+    .eq("user_id", data.user_id)
+    .maybeSingle();
   return {
     username: data.username,
     displayName: data.display_name,
     bio: data.bio ?? "",
     avatarUrl: data.avatar_url ?? "",
     bannerUrl: data.banner_url ?? "",
+    isAdmin: Boolean(badge),
+    badgeLabel: badge?.badge_label ?? "",
   };
 }
 

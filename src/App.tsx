@@ -56,6 +56,12 @@ import {
   publishPoll,
   reportComment,
   deleteMyAccount,
+  adminBanUser,
+  adminDeleteComment,
+  adminDeletePoll,
+  adminUnbanUser,
+  isCurrentUserAdmin,
+  loadAdminReports,
   signInWithEmail,
   signOut,
   signUpWithEmail,
@@ -128,6 +134,8 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const refresh = async () => {
     try {
@@ -176,6 +184,7 @@ export default function App() {
       setBio(profile?.bio ?? "");
       setAvatarUrl(profile?.avatar_url ?? "");
       setBannerUrl(profile?.banner_url ?? "");
+      setIsAdmin(await isCurrentUserAdmin());
     });
     const { data: subscription } = client.auth.onAuthStateChange(
       (_event, session) => {
@@ -192,6 +201,7 @@ export default function App() {
               }
             : null,
         );
+        void isCurrentUserAdmin().then(setIsAdmin).catch(() => setIsAdmin(false));
         window.setTimeout(() => void refresh(), 0);
       },
     );
@@ -452,7 +462,7 @@ export default function App() {
               <span>Merakla sor. Saygıyla tartış.</span>
               <span>© 2026 Tartışıyoruz</span>
               <Link to="/" className="footer-mode">
-                {dataMode === "demo" ? "Cihaz içi demo" : "Supabase bulutu"}
+                {dataMode === "demo" ? "Yerel önizleme" : "Hesabınla bağlı"}
               </Link>
             </footer>
           </main>
@@ -478,6 +488,8 @@ export default function App() {
             saving={saving}
             isCloud={dataMode === "cloud"}
             isSignedIn={Boolean(cloudUser)}
+            isAdmin={isAdmin}
+            onOpenAdmin={() => setShowAdmin(true)}
             onClose={() => setShowProfile(false)}
             onSave={onSaveProfile}
             onAuth={onAuth}
@@ -505,6 +517,14 @@ export default function App() {
                 setSaving(false);
               }
             }}
+          />
+        )}
+        {showAdmin && isAdmin && (
+          <AdminPanel
+            polls={polls}
+            onClose={() => setShowAdmin(false)}
+            onRefresh={refresh}
+            onToast={setToast}
           />
         )}
         {showComposer && (
@@ -1460,14 +1480,14 @@ function ProfilePage({
         ) : (
           <div className="profile-avatar-large">{initials(name)}</div>
         )}
-        <span className="profile-badge">
-          <BadgeCheck size={14} /> Tartışıyoruz üyesi
+        <span className={`profile-badge ${profile?.isAdmin ? "profile-badge-admin" : ""}`}>
+          <BadgeCheck size={14} /> {profile?.isAdmin ? profile.badgeLabel : "Tartışıyoruz üyesi"}
         </span>
       </div>
       <div className="profile-main">
         <div className="profile-title-row">
           <div>
-            <h1>{name}</h1>
+            <h1>{name} {profile?.isAdmin && <BadgeCheck className="admin-name-icon" size={18} aria-label="Yönetici" />}</h1>
             <span className="profile-handle">@{profileName}</span>
           </div>
           <button
@@ -1672,6 +1692,102 @@ function PollComposer({
   );
 }
 
+function AdminPanel({
+  polls,
+  onClose,
+  onRefresh,
+  onToast,
+}: {
+  polls: Poll[];
+  onClose: () => void;
+  onRefresh: () => Promise<void>;
+  onToast: (toast: ToastState) => void;
+}) {
+  const [reports, setReports] = useState<Awaited<ReturnType<typeof loadAdminReports>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const refreshReports = async () => {
+    setLoading(true);
+    try {
+      setReports(await loadAdminReports());
+    } catch (cause) {
+      onToast({ text: cause instanceof Error ? cause.message : "Raporlar yüklenemedi.", kind: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void refreshReports(); }, []);
+
+  const removeComment = async (commentId: string) => {
+    setBusy(commentId);
+    try {
+      await adminDeleteComment(commentId);
+      await refreshReports();
+      onToast({ text: "Yorum kaldırıldı.", kind: "success" });
+    } catch (cause) {
+      onToast({ text: cause instanceof Error ? cause.message : "Yorum kaldırılamadı.", kind: "error" });
+    } finally { setBusy(null); }
+  };
+  const ban = async (userId: string, minutes: number | null) => {
+    setBusy(userId);
+    try {
+      await adminBanUser(userId, minutes, "Topluluk kurallarına aykırı içerik");
+      onToast({ text: minutes ? "Kullanıcı geçici olarak kısıtlandı." : "Kullanıcı kalıcı olarak kısıtlandı.", kind: "success" });
+    } catch (cause) {
+      onToast({ text: cause instanceof Error ? cause.message : "Kullanıcı kısıtlanamadı.", kind: "error" });
+    } finally { setBusy(null); }
+  };
+  const unban = async (userId: string) => {
+    setBusy(userId);
+    try {
+      await adminUnbanUser(userId);
+      onToast({ text: "Kullanıcının kısıtlaması kaldırıldı.", kind: "success" });
+    } catch (cause) {
+      onToast({ text: cause instanceof Error ? cause.message : "Kısıtlama kaldırılamadı.", kind: "error" });
+    } finally { setBusy(null); }
+  };
+  const removePoll = async (pollId: string) => {
+    if (!window.confirm("Bu anketi ve oylarını silmek istediğine emin misin?")) return;
+    setBusy(pollId);
+    try {
+      await adminDeletePoll(pollId);
+      await onRefresh();
+      onToast({ text: "Anket kaldırıldı.", kind: "success" });
+    } catch (cause) {
+      onToast({ text: cause instanceof Error ? cause.message : "Anket kaldırılamadı.", kind: "error" });
+    } finally { setBusy(null); }
+  };
+  return (
+    <Modal title="Yönetim paneli" eyebrow="TOPLULUK GÜVENLİĞİ" onClose={onClose}>
+      <div className="admin-panel">
+        <div className="admin-heading"><ShieldCheck size={22} /><div><strong>Moderasyon merkezi</strong><span>Raporlanan içerikleri ve son anketleri yönet.</span></div></div>
+        <section className="admin-section">
+          <h3>Raporlanan yorumlar</h3>
+          {loading ? <p className="muted-copy">Raporlar yükleniyor…</p> : reports.length === 0 ? <p className="muted-copy">Bekleyen rapor yok.</p> : reports.map((report) => (
+            <article className="admin-report" key={report.commentId}>
+              <p>“{report.content}”</p>
+              <small>{report.reason} · kullanıcı: {report.userId.slice(0, 8)}…</small>
+              <div className="admin-actions">
+                <button className="button button-quiet" disabled={busy === report.commentId} onClick={() => void removeComment(report.commentId)}>Yorumu sil</button>
+                <button className="button button-quiet" disabled={busy === report.userId} onClick={() => void ban(report.userId, 1440)}>24 saat ban</button>
+                <button className="button button-quiet" disabled={busy === report.userId} onClick={() => void ban(report.userId, null)}>Kalıcı ban</button>
+                <button className="text-button" disabled={busy === report.userId} onClick={() => void unban(report.userId)}>Banı kaldır</button>
+              </div>
+            </article>
+          ))}
+        </section>
+        <section className="admin-section">
+          <h3>Son anketler</h3>
+          {polls.slice(0, 8).map((poll) => (
+            <div className="admin-poll-row" key={poll.id}><span>{poll.question}</span><button className="danger-link" disabled={busy === poll.id} onClick={() => void removePoll(poll.id)}>Sil</button></div>
+          ))}
+        </section>
+      </div>
+    </Modal>
+  );
+}
+
 function ProfileModal({
   username,
   displayName,
@@ -1679,6 +1795,8 @@ function ProfileModal({
   saving,
   isCloud,
   isSignedIn,
+  isAdmin,
+  onOpenAdmin,
   onClose,
   onSave,
   onAuth,
@@ -1691,6 +1809,8 @@ function ProfileModal({
   saving: boolean;
   isCloud: boolean;
   isSignedIn: boolean;
+  isAdmin: boolean;
+  onOpenAdmin: () => void;
   onClose: () => void;
   onSave: (username: string, displayName: string, bio: string, avatarFile: File | null, bannerFile: File | null) => void;
   onAuth: (mode: "signin" | "signup", email: string, password: string, acceptedTerms: boolean) => void;
@@ -1854,6 +1974,7 @@ function ProfileModal({
           </div>
           {isCloud && isSignedIn && (
             <div className="account-danger-zone">
+              {isAdmin && <button type="button" className="button button-quiet" onClick={onOpenAdmin}><ShieldCheck size={15} /> Yönetim paneli</button>}
               <button type="button" className="text-button" onClick={onSignOut}>Oturumu kapat</button>
               <button type="button" className="danger-link" onClick={onDeleteAccount}>Hesabımı ve verilerimi sil</button>
             </div>

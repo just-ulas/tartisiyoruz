@@ -45,6 +45,8 @@ export type PublicProfile = {
   bio: string;
   avatarUrl: string;
   bannerUrl: string;
+  isAdmin: boolean;
+  badgeLabel: string;
 };
 
 export type Leader = {
