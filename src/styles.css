@@ -1612,6 +1612,17 @@ a {
   font-size: 10px;
   line-height: 1.65;
 }
+.comment-report {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 8px;
+  cursor: pointer;
+}
+.comment-report:hover {
+  color: var(--brand);
+}
 .comment-reactions {
   display: flex;
   gap: 14px;
@@ -2062,6 +2073,44 @@ a {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.6;
+}
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.consent-row input {
+  flex: none;
+  margin-top: 2px;
+}
+.consent-row a {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.auth-switch {
+  margin-top: 12px;
+  font-size: 9px;
+}
+.account-danger-zone {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.danger-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a33a3a;
+  font-size: 9px;
+  cursor: pointer;
 }
 .toast {
   position: fixed;

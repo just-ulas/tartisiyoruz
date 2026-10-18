@@ -53,7 +53,11 @@ import {
   loadPolls,
   postComment,
   publishPoll,
-  sendEmailLoginLink,
+  reportComment,
+  deleteMyAccount,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
   updateProfile,
   voteForPoll,
 } from "./lib/data";
@@ -278,14 +282,28 @@ export default function App() {
     }
   };
 
-  const onEmailSignIn = async (email: string) => {
+  const onAuth = async (
+    mode: "signin" | "signup",
+    email: string,
+    password: string,
+    acceptedTerms: boolean,
+  ) => {
     try {
       setSaving(true);
-      await sendEmailLoginLink(email);
-      setToast({
-        text: "Giriş bağlantısı e-posta adresine gönderildi. Gelen kutunu kontrol et.",
-        kind: "success",
-      });
+      if (mode === "signup") {
+        const result = await signUpWithEmail(email, password, acceptedTerms);
+        setToast({
+          text:
+            result === "verification_required"
+              ? "Doğrulama e-postası gönderildi. E-postandaki bağlantıya tıklayıp sonra giriş yap."
+              : "Hesabın oluşturuldu.",
+          kind: "success",
+        });
+      } else {
+        await signInWithEmail(email, password);
+        setShowProfile(false);
+        setToast({ text: "Giriş yapıldı.", kind: "success" });
+      }
     } catch (cause) {
       setToast({
         text:
@@ -385,6 +403,8 @@ export default function App() {
                 path="/leaderboard"
                 element={<LeaderboardPage leaders={leaders} />}
               />
+              <Route path="/kullanim-kosullari" element={<TermsPage />} />
+              <Route path="/gizlilik" element={<PrivacyPage />} />
               <Route
                 path="/profile/:profileName"
                 element={
@@ -429,7 +449,31 @@ export default function App() {
             isSignedIn={Boolean(cloudUser)}
             onClose={() => setShowProfile(false)}
             onSave={onSaveProfile}
-            onEmailSignIn={onEmailSignIn}
+            onAuth={onAuth}
+            onSignOut={async () => {
+              try {
+                await signOut();
+                setShowProfile(false);
+                setToast({ text: "Oturum kapatıldı.", kind: "success" });
+              } catch (cause) {
+                setToast({ text: cause instanceof Error ? cause.message : "Oturum kapatılamadı.", kind: "error" });
+              }
+            }}
+            onDeleteAccount={async () => {
+              if (!window.confirm("Hesabın, oyların, yorumların ve oluşturduğun anketler silinecek. Devam edilsin mi?")) return;
+              try {
+                setSaving(true);
+                await deleteMyAccount();
+                setCloudUser(null);
+                setShowProfile(false);
+                setToast({ text: "Hesabın ve ilişkili verilerin silindi.", kind: "success" });
+                void refresh();
+              } catch (cause) {
+                setToast({ text: cause instanceof Error ? cause.message : "Hesap silinemedi.", kind: "error" });
+              } finally {
+                setSaving(false);
+              }
+            }}
           />
         )}
         {showComposer && (
@@ -1203,7 +1247,9 @@ function PollPage({
               <span className="spinner" /> Yorumlar yükleniyor…
             </div>
           ) : comments.length ? (
-            comments.map((item) => <CommentItem key={item.id} comment={item} />)
+            comments.map((item) => (
+              <CommentItem key={item.id} comment={item} onToast={onToast} />
+            ))
           ) : (
             <div className="empty-comments">
               <MessageCircle size={22} />
@@ -1217,7 +1263,29 @@ function PollPage({
   );
 }
 
-function CommentItem({ comment }: { comment: PollComment }) {
+function CommentItem({
+  comment,
+  onToast,
+}: {
+  comment: PollComment;
+  onToast: (toast: ToastState) => void;
+}) {
+  const report = async () => {
+    const reason = window.prompt(
+      "Bildirme nedeni: harassment, hate, spam, privacy veya other",
+      "harassment",
+    );
+    if (!reason) return;
+    try {
+      await reportComment(comment.id, reason.trim().toLowerCase());
+      onToast({ text: "Bildirimin alındı. Teşekkürler.", kind: "success" });
+    } catch (cause) {
+      onToast({
+        text: cause instanceof Error ? cause.message : "Yorum bildirilemedi.",
+        kind: "error",
+      });
+    }
+  };
   return (
     <article className="comment-item">
       <span className="avatar avatar-small">
@@ -1233,6 +1301,9 @@ function CommentItem({ comment }: { comment: PollComment }) {
           <time>{relativeTime(comment.createdAt)}</time>
         </div>
         <p>{comment.text}</p>
+        <button className="comment-report" type="button" onClick={report}>
+          Bildir
+        </button>
       </div>
     </article>
   );
@@ -1544,7 +1615,9 @@ function ProfileModal({
   isSignedIn,
   onClose,
   onSave,
-  onEmailSignIn,
+  onAuth,
+  onSignOut,
+  onDeleteAccount,
 }: {
   username: string;
   displayName: string;
@@ -1553,11 +1626,16 @@ function ProfileModal({
   isSignedIn: boolean;
   onClose: () => void;
   onSave: (username: string, displayName: string) => void;
-  onEmailSignIn: (email: string) => void;
+  onAuth: (mode: "signin" | "signup", email: string, password: string, acceptedTerms: boolean) => void;
+  onSignOut: () => void;
+  onDeleteAccount: () => void;
 }) {
   const [name, setName] = useState(username);
   const [label, setLabel] = useState(displayName);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   return (
     <Modal
       title={
@@ -1575,13 +1653,15 @@ function ProfileModal({
           <div className="signin-icon">
             <UserRound size={24} />
           </div>
-          <h3>E-posta adresinle katıl.</h3>
-          <p>Giriş bağlantısını e-posta adresine gönderelim. Şifre gerekmez.</p>
+          <h3>{authMode === "signup" ? "Hesabını oluştur." : "Tekrar hoş geldin."}</h3>
+          <p>
+            E-posta adresinle {authMode === "signup" ? "kayıt ol" : "giriş yap"}. Kayıt sonrası Gmail hesabına doğrulama bağlantısı gönderilir.
+          </p>
           <form
             className="form-stack"
             onSubmit={(event) => {
               event.preventDefault();
-              onEmailSignIn(email);
+              onAuth(authMode, email, password, acceptedTerms);
             }}
           >
             <label className="field-label">
@@ -1595,10 +1675,34 @@ function ProfileModal({
                 autoComplete="email"
               />
             </label>
+            <label className="field-label">
+              Şifre
+              <input
+                required
+                minLength={8}
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="En az 8 karakter"
+                autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+              />
+              {authMode === "signup" && <small>Büyük/küçük harf, rakam ve özel karakter içermeli.</small>}
+            </label>
+            {authMode === "signup" && (
+              <label className="consent-row">
+                <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} />
+                <span>
+                  Kullanım Koşullarını (<Link to="/kullanim-kosullari">incele</Link>) kabul ediyorum. E-posta adresimin hesap doğrulama ve oturum açma amacıyla işlenmesine ilişkin <Link to="/gizlilik">Gizlilik ve KVKK Aydınlatma Metni</Link>ni okudum.
+                </span>
+              </label>
+            )}
             <button className="button button-primary" disabled={saving}>
-              {saving ? <span className="spinner spinner-white" /> : <LogIn size={16} />} E-posta bağlantısı gönder
+              {saving ? <span className="spinner spinner-white" /> : <LogIn size={16} />} {authMode === "signup" ? "Kayıt ol" : "Giriş yap"}
             </button>
           </form>
+          <button type="button" className="text-button auth-switch" onClick={() => setAuthMode(authMode === "signup" ? "signin" : "signup")}>
+            {authMode === "signup" ? "Zaten hesabın var mı? Giriş yap" : "Hesabın yok mu? Kayıt ol"}
+          </button>
         </div>
       ) : (
         <form
@@ -1653,6 +1757,12 @@ function ProfileModal({
               Kaydet
             </button>
           </div>
+          {isCloud && isSignedIn && (
+            <div className="account-danger-zone">
+              <button type="button" className="text-button" onClick={onSignOut}>Oturumu kapat</button>
+              <button type="button" className="danger-link" onClick={onDeleteAccount}>Hesabımı ve verilerimi sil</button>
+            </div>
+          )}
         </form>
       )}
     </Modal>
@@ -1805,5 +1915,43 @@ function NotFound() {
         Keşfete dön
       </Link>
     </div>
+  );
+}
+
+function TermsPage() {
+  return (
+    <section className="subpage legal-page">
+      <Link to="/" className="back-link"><ArrowLeft size={16} /> Keşfete dön</Link>
+      <div className="subpage-overline"><ShieldCheck size={16} /> KULLANIM KOŞULLARI</div>
+      <h1>Saygılı bir tartışma alanı.</h1>
+      <p className="subpage-intro">Bu platforma giriş yaparak başkalarının görüşlerine saygı göstermeyi ve yalnızca yasal, kişisel veri içermeyen içerik paylaşmayı kabul edersin.</p>
+      <div className="legal-copy">
+        <h2>İçerik kuralları</h2>
+        <p>Tehdit, nefret söylemi, ağır hakaret, taciz, kişisel veri ifşası, spam ve hukuka aykırı içerik paylaşma. İçerik kurallara aykırıysa kaldırılabilir ve hesabın kısıtlanabilir.</p>
+        <h2>Hesap sorumluluğu</h2>
+        <p>E-posta hesabınla yapılan işlemlerden sen sorumlusun. Şüpheli bir içeriği yorumdaki Bildir bağlantısından bildirebilirsin.</p>
+        <h2>Hesap silme</h2>
+        <p>Profil bölümündeki “Hesabımı ve verilerimi sil” işlemiyle hesabını ve sana bağlı verileri silebilirsin.</p>
+      </div>
+    </section>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <section className="subpage legal-page">
+      <Link to="/" className="back-link"><ArrowLeft size={16} /> Keşfete dön</Link>
+      <div className="subpage-overline"><ShieldCheck size={16} /> KVKK AYDINLATMA METNİ</div>
+      <h1>Verin üzerinde söz sahibi ol.</h1>
+      <p className="subpage-intro">E-posta adresin yalnızca hesap oluşturmak, e-posta doğrulaması yapmak ve oturum açmanı sağlamak amacıyla işlenir.</p>
+      <div className="legal-copy">
+        <h2>İşlenen veriler</h2>
+        <p>E-posta adresi, seçtiğin kullanıcı adı, görünen ad, oyların, yorumların ve oluşturduğun anketler işlenebilir. Gereksiz kimlik, konum veya cihaz takibi yapılmaz.</p>
+        <h2>Hakların</h2>
+        <p>Hesabını ve ilişkili verilerini profil bölümünden silebilirsin. Verilerinin işlenmesiyle ilgili taleplerin için uygulama yöneticisine ulaşabilirsin.</p>
+        <h2>Saklama ve güvenlik</h2>
+        <p>Veriler yalnızca platformun çalışması, güvenlik ve moderasyon amacıyla gerekli olduğu ölçüde tutulur. Güvenlik kayıtları da amaçla sınırlı ve ölçülü şekilde saklanır.</p>
+      </div>
+    </section>
   );
 }

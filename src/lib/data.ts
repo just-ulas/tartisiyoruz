@@ -177,18 +177,65 @@ export async function publishPoll(
   return loadPolls();
 }
 
-export async function sendEmailLoginLink(email: string): Promise<void> {
-  if (!supabase)
-    throw new Error("E-posta girişi için önce Supabase bağlantısı yapılandırılmalı.");
+function validateCredentials(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(normalizedEmail))
     throw new Error("Geçerli bir e-posta adresi yaz.");
-  const { error } = await supabase.auth.signInWithOtp({
+  if (password.length < 8)
+    throw new Error("Şifre en az 8 karakter olmalı.");
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password))
+    throw new Error("Şifre büyük/küçük harf, rakam ve özel karakter içermeli.");
+  return normalizedEmail;
+}
+
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  acceptedTerms: boolean,
+): Promise<"confirmed" | "verification_required"> {
+  if (!supabase) throw new Error("E-posta girişi için Supabase yapılandırılmalı.");
+  if (!acceptedTerms) throw new Error("Kullanım koşullarını kabul etmelisin.");
+  const normalizedEmail = validateCredentials(email, password);
+  const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
+    password,
     options: {
-      shouldCreateUser: true,
+      data: { terms_accepted_at: new Date().toISOString() },
       emailRedirectTo: `${window.location.origin}${window.location.pathname}${window.location.hash}`,
     },
+  });
+  if (error) throw error;
+  return data.session ? "confirmed" : "verification_required";
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  if (!supabase) throw new Error("E-posta girişi için Supabase yapılandırılmalı.");
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) throw new Error("Geçerli bir e-posta adresi yaz.");
+  if (!password) throw new Error("Şifreni yaz.");
+  const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+  if (error) throw error;
+}
+
+export async function signOut(): Promise<void> {
+  if (supabase) {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }
+}
+
+export async function deleteMyAccount(): Promise<void> {
+  if (!supabase) throw new Error("Hesap silme yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) throw error;
+  await supabase.auth.signOut();
+}
+
+export async function reportComment(commentId: string, reason: string): Promise<void> {
+  if (!supabase) throw new Error("Yorum bildirme yalnızca bulut hesabında kullanılabilir.");
+  const { error } = await supabase.rpc("report_comment", {
+    p_comment_id: commentId,
+    p_reason: reason,
   });
   if (error) throw error;
 }
