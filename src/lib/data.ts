@@ -157,7 +157,15 @@ export async function postComment(
   const { error } = await supabase
     .from("comments")
     .insert({ poll_id: pollId, user_id: userData.user.id, content: text });
-  if (error) throw error;
+  if (error) {
+    if (error.code === "42501")
+      throw new Error("Yorum göndermek için doğrulanmış bir profil gerekli.");
+    if (error.code === "P0001" || error.code === "23514")
+      throw new Error("Bu içerik topluluk kurallarına uymadığı için gönderilmedi.");
+    if (error.code === "42P17")
+      throw new Error("Yorum sistemi güncelleniyor. Lütfen sayfayı yenileyip tekrar dene.");
+    throw error;
+  }
   return loadComments(pollId);
 }
 
@@ -299,6 +307,26 @@ export async function updateProfile(
     { onConflict: "user_id" },
   );
   if (error) throw error;
+}
+
+export async function uploadProfileMedia(
+  file: File,
+  kind: "avatar" | "banner",
+): Promise<string> {
+  if (!supabase) return "";
+  if (!file.type.startsWith("image/")) throw new Error("Profil görseli bir resim dosyası olmalı.");
+  if (file.size > 3 * 1024 * 1024) throw new Error("Profil görseli en fazla 3 MB olabilir.");
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) throw new Error("Görsel yüklemek için giriş yap.");
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${userData.user.id}/${kind}-${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from("profile-media").upload(path, file, {
+    cacheControl: "31536000",
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw error;
+  return supabase.storage.from("profile-media").getPublicUrl(path).data.publicUrl;
 }
 
 export async function loadPublicProfile(username: string): Promise<PublicProfile | null> {

@@ -59,6 +59,7 @@ import {
   signInWithEmail,
   signOut,
   signUpWithEmail,
+  uploadProfileMedia,
   updateProfile,
   voteForPoll,
 } from "./lib/data";
@@ -273,11 +274,15 @@ export default function App() {
     newUsername: string,
     newDisplayName: string,
     newBio: string,
-    newAvatarUrl: string,
-    newBannerUrl: string,
+    avatarFile: File | null,
+    bannerFile: File | null,
   ) => {
     try {
       setSaving(true);
+      const [newAvatarUrl, newBannerUrl] = await Promise.all([
+        avatarFile ? uploadProfileMedia(avatarFile, "avatar") : Promise.resolve(avatarUrl),
+        bannerFile ? uploadProfileMedia(bannerFile, "banner") : Promise.resolve(bannerUrl),
+      ]);
       await updateProfile(
         newUsername,
         newDisplayName,
@@ -479,8 +484,6 @@ export default function App() {
             username={username}
             displayName={displayName}
             bio={bio}
-            avatarUrl={avatarUrl}
-            bannerUrl={bannerUrl}
             saving={saving}
             isCloud={dataMode === "cloud"}
             isSignedIn={Boolean(cloudUser)}
@@ -1682,8 +1685,6 @@ function ProfileModal({
   username,
   displayName,
   bio,
-  avatarUrl,
-  bannerUrl,
   saving,
   isCloud,
   isSignedIn,
@@ -1696,13 +1697,11 @@ function ProfileModal({
   username: string;
   displayName: string;
   bio: string;
-  avatarUrl: string;
-  bannerUrl: string;
   saving: boolean;
   isCloud: boolean;
   isSignedIn: boolean;
   onClose: () => void;
-  onSave: (username: string, displayName: string, bio: string, avatarUrl: string, bannerUrl: string) => void;
+  onSave: (username: string, displayName: string, bio: string, avatarFile: File | null, bannerFile: File | null) => void;
   onAuth: (mode: "signin" | "signup", email: string, password: string, acceptedTerms: boolean) => void;
   onSignOut: () => void;
   onDeleteAccount: () => void;
@@ -1710,8 +1709,8 @@ function ProfileModal({
   const [name, setName] = useState(username);
   const [label, setLabel] = useState(displayName);
   const [about, setAbout] = useState(bio);
-  const [avatar, setAvatar] = useState(avatarUrl);
-  const [banner, setBanner] = useState(bannerUrl);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -1789,7 +1788,7 @@ function ProfileModal({
           className="form-stack"
           onSubmit={(event) => {
             event.preventDefault();
-            onSave(name, label, about, avatar, banner);
+            onSave(name, label, about, avatarFile, bannerFile);
           }}
         >
           <label className="field-label">
@@ -1824,23 +1823,19 @@ function ProfileModal({
             />
           </label>
           <label className="field-label">
-            Profil fotoğrafı URL’si
+            Profil fotoğrafı
             <input
-              type="url"
-              maxLength={500}
-              value={avatar}
-              onChange={(event) => setAvatar(event.target.value)}
-              placeholder="https://.../profil-fotografi.jpg"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
             />
           </label>
           <label className="field-label">
-            Banner URL’si
+            Banner görseli
             <input
-              type="url"
-              maxLength={500}
-              value={banner}
-              onChange={(event) => setBanner(event.target.value)}
-              placeholder="https://.../banner.jpg"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(event) => setBannerFile(event.target.files?.[0] ?? null)}
             />
           </label>
           {!isCloud && (
