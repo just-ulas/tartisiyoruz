@@ -1689,11 +1689,40 @@ a {
   letter-spacing: -1.8px;
 }
 .subpage-intro {
-  max-width: 410px;
-  margin: 0 0 24px;
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.legal-page {
+  max-width: 760px;
+}
+.legal-page h1 {
+  max-width: 650px;
+}
+.legal-copy {
+  display: grid;
+  gap: 8px;
+  max-width: 680px;
+  margin-top: 30px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.legal-copy h2 {
+  margin: 12px 0 0;
+  font: 700 16px/1.25 var(--serif);
+}
+.legal-copy h2:first-child {
+  margin-top: 0;
+}
+.legal-copy p {
+  margin: 0;
   color: var(--muted);
   font-size: 11px;
-  line-height: 1.65;
+  line-height: 1.75;
 }
 .leaderboard-card {
   overflow: hidden;

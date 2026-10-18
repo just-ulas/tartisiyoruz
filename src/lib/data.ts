@@ -10,6 +10,10 @@ import {
 } from "./demoStore";
 import { supabase } from "./supabase";
 
+const AUTH_REDIRECT_URL =
+  import.meta.env.VITE_AUTH_REDIRECT_URL?.trim() ||
+  "https://just-ulas.github.io/tartisiyoruz/";
+
 export async function loadPolls(): Promise<Poll[]> {
   if (!supabase) return getDemoPolls();
   const { data, error } = await supabase
@@ -201,7 +205,7 @@ export async function signUpWithEmail(
     password,
     options: {
       data: { terms_accepted_at: new Date().toISOString() },
-      emailRedirectTo: `${window.location.origin}${window.location.pathname}${window.location.hash}`,
+      emailRedirectTo: AUTH_REDIRECT_URL,
     },
   });
   if (error) throw error;

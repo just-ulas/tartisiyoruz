@@ -1692,7 +1692,7 @@ function ProfileModal({
               <label className="consent-row">
                 <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} />
                 <span>
-                  Kullanım Koşullarını (<Link to="/kullanim-kosullari">incele</Link>) kabul ediyorum. E-posta adresimin hesap doğrulama ve oturum açma amacıyla işlenmesine ilişkin <Link to="/gizlilik">Gizlilik ve KVKK Aydınlatma Metni</Link>ni okudum.
+                  Kullanım Koşullarını (<Link to="/kullanim-kosullari" onClick={onClose}>incele</Link>) kabul ediyorum. E-posta adresimin hesap doğrulama ve oturum açma amacıyla işlenmesine ilişkin <Link to="/gizlilik" onClick={onClose}>Gizlilik ve KVKK Aydınlatma Metni</Link>ni okudum.
                 </span>
               </label>
             )}
@@ -1943,14 +1943,14 @@ function PrivacyPage() {
       <Link to="/" className="back-link"><ArrowLeft size={16} /> Keşfete dön</Link>
       <div className="subpage-overline"><ShieldCheck size={16} /> KVKK AYDINLATMA METNİ</div>
       <h1>Verin üzerinde söz sahibi ol.</h1>
-      <p className="subpage-intro">E-posta adresin yalnızca hesap oluşturmak, e-posta doğrulaması yapmak ve oturum açmanı sağlamak amacıyla işlenir.</p>
+      <p className="subpage-intro">E-posta adresin yalnızca hesabını oluşturmak, doğrulamak ve hesabına güvenli biçimde erişmeni sağlamak amacıyla kullanılır.</p>
       <div className="legal-copy">
         <h2>İşlenen veriler</h2>
-        <p>E-posta adresi, seçtiğin kullanıcı adı, görünen ad, oyların, yorumların ve oluşturduğun anketler işlenebilir. Gereksiz kimlik, konum veya cihaz takibi yapılmaz.</p>
+        <p>Hesap için e-posta adresi; topluluk deneyimi için seçtiğin kullanıcı adı, görünen ad, oyların, yorumların ve oluşturduğun anketler kullanılabilir. Gereksiz kimlik, konum veya cihaz takibi yapılmaz.</p>
         <h2>Hakların</h2>
         <p>Hesabını ve ilişkili verilerini profil bölümünden silebilirsin. Verilerinin işlenmesiyle ilgili taleplerin için uygulama yöneticisine ulaşabilirsin.</p>
         <h2>Saklama ve güvenlik</h2>
-        <p>Veriler yalnızca platformun çalışması, güvenlik ve moderasyon amacıyla gerekli olduğu ölçüde tutulur. Güvenlik kayıtları da amaçla sınırlı ve ölçülü şekilde saklanır.</p>
+        <p>Bilgiler yalnızca hizmetin çalışması, güvenlik ve topluluk kurallarının uygulanması için gerekli olduğu ölçüde tutulur. Hesabını sildiğinde hesabına bağlı bilgiler silinir.</p>
       </div>
     </section>
   );
