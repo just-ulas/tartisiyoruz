@@ -1,0 +1,9 @@
+{
+  "routes": [
+    { "path": "/", "title": "Tartışıyoruz — Keşfet" },
+    { "path": "/trending", "title": "Gündem" },
+    { "path": "/poll/:pollId", "title": "Tartışma" },
+    { "path": "/profile/:profileName", "title": "Profil" },
+    { "path": "/leaderboard", "title": "Topluluk sıralaması" }
+  ]
+}
